@@ -1,0 +1,29 @@
+{
+  "name": "dooray-mcp-js",
+  "version": "0.1.0",
+  "description": "Dooray MCP server implemented in Node.js",
+  "type": "module",
+  "files": [
+    "src"
+  ],
+  "bin": {
+    "dooray-mcp": "./src/index.js"
+  },
+  "scripts": {
+    "start": "node ./src/index.js",
+    "inspect": "npx @modelcontextprotocol/inspector node ./src/index.js",
+    "check": "node --check ./src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "mcp",
+    "dooray",
+    "model-context-protocol"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@modelcontextprotocol/inspector": "^1.0.0"
+  }
+}
