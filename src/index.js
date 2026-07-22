@@ -16,29 +16,8 @@ const DEFAULT_ENDPOINT = "https://api.dooray.com";
 const args = parseArgs(process.argv.slice(2));
 const token = args.token || process.env.DOORAY_TOKEN;
 const endpoint = (args.endpoint || process.env.DOORAY_ENDPOINT || DEFAULT_ENDPOINT).replace(/\/+$/, "");
-const profile = args.profile || process.env.DOORAY_MCP_PROFILE || "write";
 const requestTimeoutMs = parsePositiveInteger(process.env.DOORAY_REQUEST_TIMEOUT_MS, 30000);
 const downloadDirectory = path.resolve(process.env.DOORAY_DOWNLOAD_DIR || path.join(tmpdir(), "dooray-mcp"));
-
-const PROFILE_NAMES = ["read", "write", "admin"];
-const READ_TOOLS = new Set([
-  "dooray_calendar_calendars",
-  "dooray_calendar_events",
-  "dooray_account_members",
-  "dooray_account_member",
-  "dooray_project",
-  "dooray_posts",
-  "dooray_post_logs",
-  "dooray_post_log",
-  "dooray_post_files",
-  "dooray_post_file_download",
-  "os"
-]);
-
-if (!PROFILE_NAMES.includes(profile)) {
-  console.error(`profile must be one of: ${PROFILE_NAMES.join(", ")}`);
-  process.exit(1);
-}
 
 if (args.help) {
   printHelp();
@@ -229,7 +208,7 @@ const tools = [
   }
 ];
 
-const visibleTools = tools.filter((tool) => profile !== "read" || READ_TOOLS.has(tool.name));
+const visibleTools = tools;
 const visibleToolNames = new Set(visibleTools.map((tool) => tool.name));
 const toolHandlersByName = new Map();
 
@@ -573,10 +552,6 @@ function parseArgs(argv) {
       parsed.endpoint = argv[++index];
     } else if (arg.startsWith("--endpoint=")) {
       parsed.endpoint = arg.slice("--endpoint=".length);
-    } else if (arg === "--profile") {
-      parsed.profile = argv[++index];
-    } else if (arg.startsWith("--profile=")) {
-      parsed.profile = arg.slice("--profile=".length);
     }
   }
   return parsed;
@@ -595,17 +570,11 @@ function parsePositiveInteger(value, fallback) {
 }
 
 function printHelp() {
-  console.log(`Usage: dooray-mcp --profile <read|write|admin> --token <dooray-token> [--endpoint ${DEFAULT_ENDPOINT}]
-
-Profiles:
-  read    조회 전용
-  write   조회 + 수정/생성
-  admin   전체 도구 (추후 삭제 도구 포함)
+  console.log(`Usage: dooray-mcp --token <dooray-token> [--endpoint ${DEFAULT_ENDPOINT}]
 
 Environment:
   DOORAY_TOKEN       Dooray personal API token
   DOORAY_ENDPOINT    Dooray API endpoint, default ${DEFAULT_ENDPOINT}
-  DOORAY_MCP_PROFILE  profile default: write
   DOORAY_REQUEST_TIMEOUT_MS  request timeout, default 30000
   DOORAY_DOWNLOAD_DIR        attachment directory, default system temp directory
 `);
@@ -725,7 +694,7 @@ async function handleRequest(message) {
       const name = params?.name;
       const input = params?.arguments || {};
       if (!visibleToolNames.has(name)) {
-        throw new Error(`tool is not available in the ${profile} profile: ${name}`);
+        throw new Error(`tool is not available: ${name}`);
       }
       const handler = toolHandlersByName.get(name);
       if (!handler) {

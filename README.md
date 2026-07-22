@@ -9,7 +9,7 @@ Dooray MCP server implemented in Node.js. It follows the tool names and API beha
 
 ## Official Documentation
 
-- [Dooray API 공식 문서](https://helpdesk.dooray.com/share/pages/9wWo-xwiR66BO5LGshgVTg/2939987729788437786)
+- [Dooray API official documentation](https://helpdesk.dooray.com/share/pages/9wWo-xwiR66BO5LGshgVTg/2939987729788437786)
 
 ## Run
 
@@ -23,28 +23,12 @@ You can also use an environment variable:
 DOORAY_TOKEN="{personal-token}" node ./src/index.js
 ```
 
-The default profile is `write` (조회 + 생성/수정). For 조회 전용 access, select the `read` profile with `--profile` or `DOORAY_MCP_PROFILE`.
-
 ## Codex
 
-Publish the package once from an npm-authenticated environment:
-
-```bash
-npm publish
-```
-
-Then register the normal package directly with Codex:
+Register the package directly with Codex:
 
 ```bash
 codex mcp add dooray --env DOORAY_TOKEN="$DOORAY_TOKEN" -- npx -y dooray-mcp-js
-```
-
-The main package also supports explicit profiles for compatibility:
-
-```bash
-npx -y dooray-mcp-js --profile read
-npx -y dooray-mcp-js --profile write
-npx -y dooray-mcp-js --profile admin
 ```
 
 If the token is not already in `DOORAY_TOKEN`, pass it when registering:
@@ -89,7 +73,7 @@ dooray-mcp-js/
 
 ## Tools
 
-The `read` profile exposes only 조회 tools. The normal `dooray-mcp-js` package defaults to the `write` profile and exposes all currently implemented non-admin tools. The current server has no delete tool yet.
+The `dooray-mcp-js` package exposes all currently implemented tools. The current server has no delete tool yet.
 
 - `dooray_messenger`
 - `dooray_calendar_calendars`
@@ -111,5 +95,3 @@ The `read` profile exposes only 조회 tools. The normal `dooray-mcp-js` package
 
 - `--token`: Dooray personal API token. Defaults to `DOORAY_TOKEN`.
 - `--endpoint`: Dooray API endpoint. Defaults to `https://api.dooray.com`.
-- `--profile`: Permission profile: `read`, `write`, or `admin`. Defaults to `read`.
-- `DOORAY_MCP_PROFILE`: Environment-variable equivalent of `--profile`.
