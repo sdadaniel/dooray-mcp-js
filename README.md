@@ -23,15 +23,13 @@ You can also use an environment variable:
 DOORAY_TOKEN="{personal-token}" node ./src/index.js
 ```
 
-The default profile is `write` (조회 + 생성/수정). Use the separate `dooray-mcp-js-read` package for 조회 전용 access, or select a profile explicitly with `--profile` or `DOORAY_MCP_PROFILE`.
+The default profile is `write` (조회 + 생성/수정). For 조회 전용 access, select the `read` profile with `--profile` or `DOORAY_MCP_PROFILE`.
 
 ## Codex
 
 Publish the package once from an npm-authenticated environment:
 
 ```bash
-npm publish
-cd packages/dooray-mcp-js-read
 npm publish
 ```
 
@@ -40,14 +38,6 @@ Then register the normal package directly with Codex:
 ```bash
 codex mcp add dooray --env DOORAY_TOKEN="$DOORAY_TOKEN" -- npx -y dooray-mcp-js
 ```
-
-For a read-only MCP, use the separate read-only package:
-
-```bash
-codex mcp add dooray-read --env DOORAY_TOKEN="$DOORAY_TOKEN" -- npx -y dooray-mcp-js-read
-```
-
-`dooray-mcp-js-read`는 `dooray-mcp-js`를 내부적으로 실행하되 `read` 프로필을 강제합니다.
 
 The main package also supports explicit profiles for compatibility:
 
@@ -93,15 +83,13 @@ claude mcp add dooray --env DOORAY_TOKEN="{personal-token}" -- npx -y dooray-mcp
 dooray-mcp-js/
 ├── src/
 │   └── index.js      # MCP server entry point
-├── packages/
-│   └── dooray-mcp-js-read/  # read-only package wrapper
 ├── package.json
 └── README.md
 ```
 
 ## Tools
 
-The `dooray-mcp-js-read` package exposes only 조회 tools. The normal `dooray-mcp-js` package defaults to the `write` profile and exposes all currently implemented non-admin tools. The current server has no delete tool yet.
+The `read` profile exposes only 조회 tools. The normal `dooray-mcp-js` package defaults to the `write` profile and exposes all currently implemented non-admin tools. The current server has no delete tool yet.
 
 - `dooray_messenger`
 - `dooray_calendar_calendars`
