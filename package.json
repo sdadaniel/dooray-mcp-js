@@ -3,6 +3,10 @@
   "version": "0.1.1",
   "description": "Dooray MCP server implemented in Node.js",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sdadaniel/dooray-mcp.git"
+  },
   "files": [
     "src"
   ],
