@@ -12,12 +12,18 @@ import path from "node:path";
 const SERVER_NAME = "dooray";
 const SERVER_VERSION = "0.1.0";
 const DEFAULT_ENDPOINT = "https://api.dooray.com";
+const DEFAULT_MODE = "full";
+const READ_ONLY_MODE = "read-only";
+const WRITE_TOOL_NAMES = new Set([
+  "dooray_messenger",
+  "dooray_calendar_post_event",
+  "dooray_post_log_create",
+  "dooray_post_log_update"
+]);
 
 const args = parseArgs(process.argv.slice(2));
 const token = args.token || process.env.DOORAY_TOKEN;
 const endpoint = (args.endpoint || process.env.DOORAY_ENDPOINT || DEFAULT_ENDPOINT).replace(/\/+$/, "");
-const requestTimeoutMs = parsePositiveInteger(process.env.DOORAY_REQUEST_TIMEOUT_MS, 30000);
-const downloadDirectory = path.resolve(process.env.DOORAY_DOWNLOAD_DIR || path.join(tmpdir(), "dooray-mcp"));
 
 if (args.help) {
   printHelp();
@@ -28,6 +34,10 @@ if (!token) {
   console.error("token must be set. Use --token <token> or DOORAY_TOKEN.");
   process.exit(1);
 }
+
+const mode = normalizeMode(args.mode || process.env.DOORAY_MCP_MODE || DEFAULT_MODE);
+const requestTimeoutMs = parsePositiveInteger(process.env.DOORAY_REQUEST_TIMEOUT_MS, 30000);
+const downloadDirectory = path.resolve(process.env.DOORAY_DOWNLOAD_DIR || path.join(tmpdir(), "dooray-mcp"));
 
 const tools = [
   {
@@ -208,7 +218,7 @@ const tools = [
   }
 ];
 
-const visibleTools = tools;
+const visibleTools = mode === READ_ONLY_MODE ? tools.filter((tool) => !WRITE_TOOL_NAMES.has(tool.name)) : tools;
 const visibleToolNames = new Set(visibleTools.map((tool) => tool.name));
 const toolHandlersByName = new Map();
 
@@ -552,9 +562,21 @@ function parseArgs(argv) {
       parsed.endpoint = argv[++index];
     } else if (arg.startsWith("--endpoint=")) {
       parsed.endpoint = arg.slice("--endpoint=".length);
+    } else if (arg === "--mode") {
+      parsed.mode = argv[++index];
+    } else if (arg.startsWith("--mode=")) {
+      parsed.mode = arg.slice("--mode=".length);
     }
   }
   return parsed;
+}
+
+function normalizeMode(value) {
+  if (value === DEFAULT_MODE || value === READ_ONLY_MODE) {
+    return value;
+  }
+
+  throw new Error(`DOORAY_MCP_MODE or --mode must be one of: ${DEFAULT_MODE}, ${READ_ONLY_MODE}`);
 }
 
 function parsePositiveInteger(value, fallback) {
@@ -570,11 +592,12 @@ function parsePositiveInteger(value, fallback) {
 }
 
 function printHelp() {
-  console.log(`Usage: dooray-mcp --token <dooray-token> [--endpoint ${DEFAULT_ENDPOINT}]
+  console.log(`Usage: dooray-mcp --token <dooray-token> [--endpoint ${DEFAULT_ENDPOINT}] [--mode ${DEFAULT_MODE}|${READ_ONLY_MODE}]
 
 Environment:
   DOORAY_TOKEN       Dooray personal API token
   DOORAY_ENDPOINT    Dooray API endpoint, default ${DEFAULT_ENDPOINT}
+  DOORAY_MCP_MODE    tool exposure mode: ${DEFAULT_MODE} or ${READ_ONLY_MODE}, default ${DEFAULT_MODE}
   DOORAY_REQUEST_TIMEOUT_MS  request timeout, default 30000
   DOORAY_DOWNLOAD_DIR        attachment directory, default system temp directory
 `);
