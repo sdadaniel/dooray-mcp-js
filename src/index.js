@@ -14,6 +14,7 @@ const SERVER_VERSION = "0.1.0";
 const DEFAULT_ENDPOINT = "https://api.dooray.com";
 const DEFAULT_MODE = "full";
 const READ_ONLY_MODE = "read-only";
+const TRUSTED_DOWNLOAD_AUTH_HOSTS = new Set(["file-api.dooray.com"]);
 const WRITE_TOOL_NAMES = new Set([
   "dooray_messenger",
   "dooray_calendar_post_event",
@@ -148,8 +149,8 @@ const tools = [
     name: "dooray_project",
     description: [
       "List Dooray projects accessible to the token or get one project by ID.",
-      "find_projects requires type, scope, and state; repeat the relevant filter combinations when resolving the unknown projectId for a task URL because that URL contains only postId.",
-      "A partial project list is not proof that a project or post is inaccessible.",
+      "A /task/{projectId}/{postId} URL provides projectId directly, while a legacy /project/tasks/{postId} URL contains only postId and requires project discovery.",
+      "find_projects requires type, scope, and state; use page and size to exhaust every relevant filter combination because one page is not proof that a project or post is inaccessible.",
       "find_project requires projectId.",
     ].join(" "),
     inputSchema: objectSchema(
@@ -171,6 +172,10 @@ const tools = [
           ["private", "public"],
           "project scope; required for find_projects",
         ),
+        page: numberSchema("project list page number; default is 0"),
+        size: numberSchema(
+          "number of projects per page; default is 100, max is 100",
+        ),
       },
       ["operation"],
     ),
@@ -179,8 +184,8 @@ const tools = [
     name: "dooray_posts",
     description: [
       "Find Dooray task posts in one project or a comma-separated set of accessible project IDs.",
-      "For task URLs ending in /project/tasks/{postId}, the trailing value is postId, not projectId; the URL does not reveal projectId.",
-      "Resolve the project with dooray_project, query candidate project IDs with size up to 100, and continue through pages until the returned post ID matches; a lookup under one wrong project ID or only the first page does not prove that the post is unavailable.",
+      "Parse the URL first: /task/{projectId}/{postId} provides both IDs, while legacy /project/tasks/{postId} provides only postId and requires project discovery with dooray_project.",
+      "Query the known or candidate project IDs with size up to 100 and continue through pages until the returned post ID matches; a lookup under one wrong project ID or only the first page does not prove that the post is unavailable.",
       "The matching post response contains the task body, so do not call dooray_post_logs unless comments or activity were explicitly requested.",
       "When the post has fileIdList, treat every ID as a downloadable body file, commonly an inline image, and call dooray_post_file_download with the same verified projectId and postId.",
       "Always try that direct download even if dooray_post_files is empty or returns AUTH_FORBIDDEN_ERROR.",
@@ -189,7 +194,7 @@ const tools = [
       {
         operation: enumSchema(["find_posts"], "The operation to perform"),
         projectId: stringSchema(
-          "accessible project id, or comma separated accessible project ids; the trailing id in a /project/tasks/{postId} URL is not projectId",
+          "project id from /task/{projectId}/{postId}, or comma separated accessible project ids discovered for a legacy /project/tasks/{postId} URL",
         ),
         page: numberSchema("page number, default is 0"),
         size: numberSchema(
@@ -317,19 +322,21 @@ const tools = [
     name: "dooray_post_file_download",
     description: [
       "Download a Dooray post file by fileId through authenticated redirects to a local temporary directory.",
+      "Authorization is forwarded only to the configured API origin and the HTTPS file-api.dooray.com download service; arbitrary redirect origins receive no Dooray token.",
       "Use this for every ID from the matching dooray_posts.fileIdList, including inline body images, with the same verified projectId and postId; it also supports regular attachment file IDs.",
       "dooray_post_files is not a prerequisite, and an empty result or AUTH_FORBIDDEN_ERROR from that separate endpoint does not imply that this direct download will fail.",
       "On success, the result contains filePath, fileName, mimeType, size, and temporary; inspect filePath with an appropriate local image viewer or document parser.",
-      "Only report a body file as inaccessible after this direct download fails with the verified projectId, postId, and fileId.",
+      "A fetch failure or timeout is transient and must not be reported as a permission denial; retry or report the transport problem separately.",
+      "Only report a body file as forbidden or missing when this direct request returns a terminal Dooray response such as 403 or 404 with the verified projectId, postId, and fileId.",
     ].join(" "),
     inputSchema: objectSchema(
       {
         operation: enumSchema(["download"], "The operation to perform"),
         projectId: stringSchema(
-          "verified project id of the matching post; this is not the trailing id from a task URL",
+          "verified project id of the matching post; for /task/{projectId}/{postId} URLs this is the first numeric path value",
         ),
         postId: stringSchema(
-          "matching post id; for /project/tasks/{postId} URLs this is the trailing URL value",
+          "matching post id; this is the final numeric path value in both supported task URL forms",
         ),
         fileId: stringSchema(
           "file id from the matching post's fileIdList or regular attachment list",
@@ -446,7 +453,8 @@ const toolHandlers = {
     return doorayRequest("GET", "/project/v1/projects", {
       query: {
         member: "me",
-        size: "100",
+        page: input.page ?? 0,
+        size: input.size ?? 100,
         type: requireString(input, "type"),
         scope: requireString(input, "scope"),
         state: requireString(input, "state"),
@@ -635,6 +643,7 @@ async function doorayDownload(
     Authorization: `dooray-api ${token}`,
     Accept: "application/octet-stream",
   };
+  const endpointOrigin = new URL(endpoint).origin;
   let response = await fetchWithTimeout(endpoint + requestPath, {
     headers,
     redirect: "manual",
@@ -651,16 +660,24 @@ async function doorayDownload(
         "Dooray download redirect did not provide a Location header.",
       );
     }
-    response = await fetchWithTimeout(new URL(location, response.url), {
-      headers,
+    const redirectUrl = new URL(location, response.url);
+    const redirectHeaders = shouldSendDownloadAuthorization(
+      redirectUrl,
+      endpointOrigin,
+    )
+      ? headers
+      : { Accept: "application/octet-stream" };
+    response = await fetchWithTimeout(redirectUrl, {
+      headers: redirectHeaders,
       redirect: "manual",
     });
   }
 
   if (!response.ok) {
     const responseText = await response.text();
+    const responseOrigin = new URL(response.url).origin;
     throw new Error(
-      `Dooray API ${response.status} ${response.statusText}: ${responseText}`,
+      `Dooray API ${response.status} ${response.statusText} from ${responseOrigin}: ${responseText}`,
     );
   }
 
@@ -719,6 +736,14 @@ async function fetchWithTimeout(url, options) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+function shouldSendDownloadAuthorization(url, endpointOrigin) {
+  return (
+    url.origin === endpointOrigin ||
+    (url.protocol === "https:" &&
+      TRUSTED_DOWNLOAD_AUTH_HOSTS.has(url.hostname))
+  );
 }
 
 function getContentDispositionFileName(contentDisposition) {
