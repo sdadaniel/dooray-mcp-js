@@ -144,7 +144,8 @@ The `dooray-mcp-js` package exposes all currently implemented tools. The current
 - `dooray_account_members`
 - `dooray_account_member`
 - `dooray_project`
-- `dooray_posts` (finds task posts and exposes the task body plus `fileIdList`, which can contain inline body images/files)
+- `dooray_posts` (lists task posts and `fileIdList`; list responses may omit the body)
+- `dooray_post` (gets one task including its body with `operation=find_post`, `projectId`, and `postId`)
 - `dooray_post_logs` (find comments and activity logs for a post)
 - `dooray_post_log` (find one comment or activity log by ID)
 - `dooray_post_log_create` (add a comment to a post; body is `{ "mimeType": "text/x-markdown", "content": "..." }`)
@@ -153,15 +154,32 @@ The `dooray-mcp-js` package exposes all currently implemented tools. The current
 - `dooray_post_file_download` (downloads IDs from `dooray_posts.fileIdList`, including inline body images, or regular attachment file IDs with `media=raw`; authorization is limited to the configured API origin and HTTPS `file-api.dooray.com`)
 - `os`
 
+### Get one task including its body
+
+Call the MCP tool with:
+
+```json
+{
+  "name": "dooray_post",
+  "arguments": {
+    "operation": "find_post",
+    "projectId": "4271874883715387917",
+    "postId": "4406115298695798602"
+  }
+}
+```
+
+The server calls `GET /project/v1/projects/{projectId}/posts/{postId}` and returns the Dooray JSON response unchanged. Attachments are returned in `result.files` (IDs, names, and sizes); list responses can instead contain `fileIdList`. The title is `result.subject`; the body text is `result.body.content`, interpreted according to `result.body.mimeType` (for example, HTML or Markdown). API errors use the existing MCP error handling. This tool is available in read-only mode. Restart the MCP server and refresh the client tool list after updating the local source; an installation running a published package needs that updated package version.
+
 ### Reading task URLs and body files
 
 Use this workflow when a request asks for a Dooray task body, an image embedded in the body, or a file referenced by the body. Comments and activity logs are a separate resource and are not required for this workflow.
 
 1. Parse the task URL. `/task/{projectId}/{postId}` provides both IDs directly. The legacy `/project/tasks/{postId}` form provides only `postId`, so its trailing number must not be used as `projectId`.
 2. Resolve the project only for the legacy URL form. Call `dooray_project` with `operation=find_projects` and the required `type`, `scope`, and `state` filters. Repeat the relevant filter combinations and continue through `page` values with `size` up to `100` until every result page has been checked.
-3. Search for the matching post. Call `dooray_posts` with the project ID from the new URL form or the candidate project IDs discovered for a legacy URL. Use `size` up to `100`, continue through `page` values as needed, and match the returned post ID to the URL's `postId`. A lookup under one incorrect project ID or only the first result page is not evidence that the task or its files are unavailable.
-4. Read the task body from the matching `dooray_posts` result. Do not call `dooray_post_logs` unless the user explicitly asks for comments or activity history.
-5. If the matching post contains `fileIdList`, call `dooray_post_file_download` once for every listed ID using the same verified `projectId` and `postId`. These IDs commonly represent images embedded in the task body, but can represent other body files as well.
+3. For the new URL form, call `dooray_post` directly using both IDs. For a legacy URL, search for the matching post: call `dooray_posts` with the project ID from the new URL form or the candidate project IDs discovered for a legacy URL. Use `size` up to `100`, continue through `page` values as needed, and match the returned post ID to the URL's `postId`. A lookup under one incorrect project ID or only the first result page is not evidence that the task or its files are unavailable.
+4. For a legacy URL, call `dooray_post` with the matching project and post IDs. Read `result.body.content` and its format from `result.body.mimeType` in the detail response. List responses may omit the body. Do not call `dooray_post_logs` unless the user explicitly asks for comments or activity history.
+5. Collect file IDs from the detail response `result.files[].id` and any `fileIdList` in the list response, removing duplicates. Call `dooray_post_file_download` once for each ID using the same verified `projectId` and `postId`. These IDs commonly represent images embedded in the task body, but can represent other body files as well.
 6. Inspect the returned local `filePath` with an image viewer or an appropriate document parser. The download result also includes `fileName`, `mimeType`, `size`, and `temporary`.
 
 `dooray_post_files` is exposed for listing regular attachments, but it is separate from the `fileIdList` path used by body files. It can return an empty list or `AUTH_FORBIDDEN_ERROR` even when direct downloads from `dooray_posts.fileIdList` work. Therefore, neither outcome should be reported as proof that a body image or file is inaccessible. A `fetch failed` error or timeout from `dooray_post_file_download` is also a transport failure, not a permission result, and should be retried or reported separately. Report a file as forbidden or missing only when the direct download returns a terminal Dooray response such as `403` or `404` with the verified `projectId`, `postId`, and `fileId`.
@@ -178,6 +196,7 @@ Exposed in read-only mode:
 - `dooray_account_member`
 - `dooray_project`
 - `dooray_posts`
+- `dooray_post`
 - `dooray_post_logs`
 - `dooray_post_log`
 - `dooray_post_files`

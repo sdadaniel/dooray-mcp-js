@@ -186,7 +186,7 @@ const tools = [
       "Find Dooray task posts in one project or a comma-separated set of accessible project IDs.",
       "Parse the URL first: /task/{projectId}/{postId} provides both IDs, while legacy /project/tasks/{postId} provides only postId and requires project discovery with dooray_project.",
       "Query the known or candidate project IDs with size up to 100 and continue through pages until the returned post ID matches; a lookup under one wrong project ID or only the first page does not prove that the post is unavailable.",
-      "The matching post response contains the task body, so do not call dooray_post_logs unless comments or activity were explicitly requested.",
+      "List responses may omit the task body. Use dooray_post with the verified projectId and postId to read the full task body; do not use comments as a substitute.",
       "When the post has fileIdList, treat every ID as a downloadable body file, commonly an inline image, and call dooray_post_file_download with the same verified projectId and postId.",
       "Always try that direct download even if dooray_post_files is empty or returns AUTH_FORBIDDEN_ERROR.",
     ].join(" "),
@@ -236,6 +236,18 @@ const tools = [
         ),
       },
       ["operation", "projectId"],
+    ),
+  },
+  {
+    name: "dooray_post",
+    description: "Get one Dooray task including its body via GET /project/v1/projects/{projectId}/posts/{postId}. For /task/{projectId}/{postId} URLs, use both IDs directly without searching the post list. Read result.body.content and preserve result.body.mimeType. Download result.files[].id attachments and any list fileIdList items with dooray_post_file_download, removing duplicates; comments are a separate resource.",
+    inputSchema: objectSchema(
+      {
+        operation: enumSchema(["find_post"], "The operation to perform"),
+        projectId: stringSchema("project id"),
+        postId: stringSchema("post id"),
+      },
+      ["operation", "projectId", "postId"],
     ),
   },
   {
@@ -491,6 +503,16 @@ const toolHandlers = {
       {
         query,
       },
+    );
+  },
+
+  async dooray_post(input) {
+    requireOperation(input, "find_post");
+    const projectId = encodeURIComponent(requireString(input, "projectId"));
+    const postId = encodeURIComponent(requireString(input, "postId"));
+    return doorayRequest(
+      "GET",
+      `/project/v1/projects/${projectId}/posts/${postId}`,
     );
   },
 
