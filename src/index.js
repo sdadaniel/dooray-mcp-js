@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const SERVER_NAME = "dooray";
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = "0.2.1";
 const DEFAULT_ENDPOINT = "https://api.dooray.com";
 const DEFAULT_MODE = "full";
 const READ_ONLY_MODE = "read-only";

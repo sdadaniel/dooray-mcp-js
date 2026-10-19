@@ -1,6 +1,6 @@
 {
   "name": "dooray-mcp-js",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Dooray MCP server implemented in Node.js",
   "type": "module",
   "repository": {
